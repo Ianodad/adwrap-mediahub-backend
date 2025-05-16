@@ -1,0 +1,43 @@
+# src/graphql/schemas/route.gql
+type Route {
+  id: ID!
+  mediaItemId: Int!
+  mediaItem: MediaItem!
+  routeName: String!
+  sideRoute: String
+  description: String
+  numberOfStreetPoles: Int
+  pricePerStreetPole: Float
+  images: [String!]
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+extend type Query {
+  routes(mediaItemId: Int!): [Route!]!
+}
+
+extend type Mutation {
+  createRoute(input: CreateRouteInput!): Route!
+  updateRoute(id: ID!, input: UpdateRouteInput!): Route!
+  deleteRoute(id: ID!): Boolean!
+}
+
+input CreateRouteInput {
+  mediaItemId: Int!
+  routeName: String!
+  sideRoute: String
+  description: String
+  numberOfStreetPoles: Int
+  pricePerStreetPole: Float
+  images: [String!]
+}
+
+input UpdateRouteInput {
+  routeName: String
+  sideRoute: String
+  description: String
+  numberOfStreetPoles: Int
+  pricePerStreetPole: Float
+  images: [String!]
+}

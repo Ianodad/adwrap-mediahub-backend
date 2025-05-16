@@ -1,0 +1,59 @@
+# src/graphql/schemas/staticMediaFace.gql
+type StaticMediaFace {
+  id: ID!
+  mediaItemId: Int!
+  mediaItem: MediaItem!
+  faceNumber: Int!
+  description: String
+  availability: String
+  images: [String!]
+  rent: Float
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+extend type Query {
+  staticMediaFaces(mediaItemId: Int!): [StaticMediaFace!]!
+}
+
+extend type Mutation {
+  createStaticMediaFace(input: CreateStaticMediaFaceInput!): StaticMediaFace!
+  updateStaticMediaFace(
+    id: ID!
+    input: UpdateStaticMediaFaceInput!
+  ): StaticMediaFace!
+  deleteStaticMediaFace(id: ID!): Boolean!
+}
+
+input CreateStaticMediaFaceInput {
+  mediaItemId: Int!
+  faceNumber: Int!
+  description: String
+  availability: String
+  images: [String!]
+  rent: Float
+}
+# inline static media faces (without mediaItemId)
+input CreateStaticMediaFaceInlineInput {
+  faceNumber: Int!
+  description: String
+  availability: String
+  images: [String!]
+  rent: Float
+}
+# input type for inline routes (without mediaItemId)
+input CreateRouteInlineInput {
+  routeName: String!
+  sideRoute: String
+  description: String
+  numberOfStreetPoles: Int
+  pricePerStreetPole: Float
+  images: [String!]
+}
+input UpdateStaticMediaFaceInput {
+  faceNumber: Int
+  description: String
+  availability: String
+  images: [String!]
+  rent: Float
+}

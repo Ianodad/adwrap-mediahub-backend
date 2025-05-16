@@ -1,0 +1,34 @@
+# src/graphql/schemas/workspace.gql
+type Workspace {
+  id: ID!
+  name: String!
+  email: String
+  address: String
+  location: String
+  mediaItems: [MediaItem!]!
+}
+
+extend type Query {
+  workspaces: [Workspace!]!
+  workspace(id: ID!): Workspace
+}
+
+extend type Mutation {
+  createWorkspace(input: CreateWorkspaceInput!): Workspace!
+  updateWorkspace(id: ID!, input: UpdateWorkspaceInput!): Workspace!
+  deleteWorkspace(id: ID!): Boolean!
+}
+
+input CreateWorkspaceInput {
+  name: String!
+  email: String
+  address: String
+  location: String
+}
+
+input UpdateWorkspaceInput {
+  name: String
+  email: String
+  address: String
+  location: String
+}

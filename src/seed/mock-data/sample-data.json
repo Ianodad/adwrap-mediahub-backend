@@ -1,0 +1,222 @@
+{
+  "workspaces": [
+    {
+      "id": 1,
+      "name": "Ogilvy Outdoor",
+      "email": "info@ogilvyoutdoor.com",
+      "address": "12 Herbert Macaulay Way, Yaba",
+      "location": "Lagos Mainland"
+    },
+    {
+      "id": 2,
+      "name": "Proactive Media",
+      "email": "contact@proactive.ng",
+      "address": "Plot 14 Wuse Zone 5",
+      "location": "Abuja"
+    },
+    {
+      "id": 3,
+      "name": "Kampala Media Group",
+      "email": "info@kampalamedia.co.ug",
+      "address": "45 Jinja Road",
+      "location": "Kampala"
+    }
+  ],
+  "mediaItems": [
+    {
+      "id": 1,
+      "workspaceId": 1,
+      "type": "BILLBOARD",
+      "displayId": "BB-1",
+      "name": "Iyana Oworo Billboard",
+      "format": "standard",
+      "location": "Iyana Oworo, Lagos",
+      "latitude": 6.5612,
+      "longitude": 3.3853,
+      "closestLandmark": "Third Mainland Bridge",
+      "availability": "Available",
+      "staticMediaFaces": [
+        {
+          "id": 101,
+          "faceNumber": 1,
+          "description": "Facing traffic towards Island",
+          "availability": "Available",
+          "imagesJson": "[\"https://example.com/billboard-1a.jpg\"]",
+          "rent": 50000
+        },
+        {
+          "id": 102,
+          "faceNumber": 2,
+          "description": "Facing Mainland",
+          "availability": "Booked",
+          "imagesJson": "[\"https://example.com/billboard-1b.jpg\"]",
+          "rent": 45000
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "workspaceId": 1,
+      "type": "BILLBOARD",
+      "displayId": "BB-2",
+      "name": "Lekki Phase 1 Billboard",
+      "format": "unipole",
+      "location": "Lekki Phase 1, Lagos",
+      "latitude": 6.4431,
+      "longitude": 3.4759,
+      "closestLandmark": "Lekki-Ikoyi Link Bridge",
+      "availability": "Available",
+      "staticMediaFaces": [
+        {
+          "id": 103,
+          "faceNumber": 1,
+          "description": "Facing Lekki-Epe Expressway",
+          "availability": "Available",
+          "imagesJson": "[\"https://example.com/billboard-2a.jpg\"]",
+          "rent": 75000
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "workspaceId": 2,
+      "type": "BILLBOARD",
+      "displayId": "BB-1",
+      "name": "Wuse 2 Billboard",
+      "format": "rooftop",
+      "location": "Wuse 2, Abuja",
+      "latitude": 9.0765,
+      "longitude": 7.4814,
+      "closestLandmark": "Silverbird Cinema",
+      "availability": "Booked",
+      "staticMediaFaces": [
+        {
+          "id": 104,
+          "faceNumber": 1,
+          "description": "Facing Adetokunbo Ademola Crescent",
+          "availability": "Booked",
+          "imagesJson": "[\"https://example.com/billboard-3a.jpg\"]",
+          "rent": 60000
+        },
+        {
+          "id": 105,
+          "faceNumber": 2,
+          "description": "Facing Herbert Macaulay Way",
+          "availability": "Available",
+          "imagesJson": "[\"https://example.com/billboard-3b.jpg\"]",
+          "rent": 55000
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "workspaceId": 3,
+      "type": "BILLBOARD",
+      "displayId": "BB-1",
+      "name": "Kampala Central Billboard",
+      "format": "standard",
+      "location": "Kampala Road, Kampala",
+      "latitude": 0.3136,
+      "longitude": 32.5811,
+      "closestLandmark": "National Theatre",
+      "availability": "Available",
+      "staticMediaFaces": [
+        {
+          "id": 106,
+          "faceNumber": 1,
+          "description": "Facing Kampala Road",
+          "availability": "Available",
+          "imagesJson": "[\"https://example.com/billboard-4a.jpg\"]",
+          "rent": 40000
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "workspaceId": 2,
+      "type": "STREET_POLE",
+      "displayId": "SP-1",
+      "name": "Aminu Kano Crescent Poles",
+      "location": "Aminu Kano Crescent, Abuja",
+      "latitude": 9.0821,
+      "longitude": 7.4948,
+      "closestLandmark": "Wuse Market",
+      "availability": "Available",
+      "routes": [
+        {
+          "id": 201,
+          "routeName": "North Route",
+          "sideRoute": "North",
+          "description": "Towards Berger Junction",
+          "numberOfStreetPoles": 12,
+          "pricePerStreetPole": 25000,
+          "imagesJson": "[\"https://example.com/streetpole-1a.jpg\"]"
+        },
+        {
+          "id": 202,
+          "routeName": "South Route",
+          "sideRoute": "South",
+          "description": "Back toward Banex Plaza",
+          "numberOfStreetPoles": 8,
+          "pricePerStreetPole": 20000,
+          "imagesJson": "[\"https://example.com/streetpole-1b.jpg\"]"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "workspaceId": 1,
+      "type": "STREET_POLE",
+      "displayId": "SP-1",
+      "name": "Victoria Island Poles",
+      "location": "Adeola Odeku Street, Victoria Island",
+      "latitude": 6.4296,
+      "longitude": 3.4258,
+      "closestLandmark": "The Palms Shopping Mall",
+      "availability": "Available",
+      "routes": [
+        {
+          "id": 203,
+          "routeName": "East Route",
+          "sideRoute": "North",
+          "description": "Towards Ajose Adeogun",
+          "numberOfStreetPoles": 10,
+          "pricePerStreetPole": 30000,
+          "imagesJson": "[\"https://example.com/streetpole-2a.jpg\"]"
+        },
+        {
+          "id": 204,
+          "routeName": "West Route",
+          "sideRoute": "South",
+          "description": "Towards Ahmadu Bello",
+          "numberOfStreetPoles": 10,
+          "pricePerStreetPole": 30000,
+          "imagesJson": "[\"https://example.com/streetpole-2b.jpg\"]"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "workspaceId": 3,
+      "type": "STREET_POLE",
+      "displayId": "SP-1",
+      "name": "Kampala CBD Poles",
+      "location": "Jinja Road, Kampala",
+      "latitude": 0.3157,
+      "longitude": 32.5985,
+      "closestLandmark": "Garden City Mall",
+      "availability": "Available",
+      "routes": [
+        {
+          "id": 205,
+          "routeName": "Main Road",
+          "sideRoute": "North",
+          "description": "Main stretch of Jinja Road",
+          "numberOfStreetPoles": 15,
+          "pricePerStreetPole": 15000,
+          "imagesJson": "[\"https://example.com/streetpole-3a.jpg\"]"
+        }
+      ]
+    }
+  ]
+}

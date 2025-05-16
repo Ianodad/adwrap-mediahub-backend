@@ -1,0 +1,8 @@
+# src/graphql/schemas/root.gql
+type Query {
+  _empty: String
+}
+
+type Mutation {
+  _empty: String
+}

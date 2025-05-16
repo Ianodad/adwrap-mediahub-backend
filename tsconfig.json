@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "rootDir": "src",
+    "outDir": "dist",
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@models/*": ["models/*"],
+      "@graphql/*": ["graphql/*"],
+      "@utils/*": ["utils/*"],
+      "@middleware/*": ["middleware/*"],
+      "@schemas/*": ["graphql/schemas/*"],
+      "@resolvers/*": ["graphql/resolvers/*"],
+      "@types/*": ["types/*"],
+      "@config/*": ["config/*"],
+      "@seed/*": ["seed/*"]
+    },
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "removeComments": false,
+    "allowSyntheticDefaultImports": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "strictNullChecks": true,
+    "importHelpers": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

@@ -1,0 +1,71 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Workspace {
+  id         Int         @id @default(autoincrement())
+  name       String
+  email      String?
+  address    String?
+  location   String?
+  mediaItems MediaItem[]
+}
+
+model MediaItem {
+  id              Int              @id @default(autoincrement())
+  workspaceId     Int
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id])
+  type            MediaType        @default(BILLBOARD)
+  displayId       String           
+  name            String
+  format          String?          // Added: format (standard, unipole, rooftop)
+  location        String?          // Added: location description
+  latitude        Float?           // Added: geographic coordinates
+  longitude       Float?           // Added: geographic coordinates
+  closestLandmark String?          // Added: closest landmark
+  availability    String?          // Added: availability status
+  staticMediaFaces StaticMediaFace[]
+  routes          Route[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  @@unique([workspaceId, displayId])
+}
+
+model StaticMediaFace {
+  id          Int        @id @default(autoincrement())
+  mediaItemId Int
+  mediaItem   MediaItem  @relation(fields: [mediaItemId], references: [id])
+  faceNumber  Int
+  description String?
+  availability String?    // Added: availability status
+  imagesJson  String?    // Changed: JSON string of image URLs
+  rent        Float?     // Added: rental price
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Route {
+  id                Int        @id @default(autoincrement())
+  mediaItemId       Int
+  mediaItem         MediaItem  @relation(fields: [mediaItemId], references: [id])
+  routeName         String?
+  sideRoute         String?    // Added: North/South orientation
+  description       String?
+  numberOfStreetPoles Int?     // Added: number of poles in route
+  pricePerStreetPole Float?    // Added: price per pole
+  imagesJson  String?    // Changed: JSON string of image URLs
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+}
+
+enum MediaType {
+  BILLBOARD
+  STREET_POLE
+}

@@ -1,0 +1,61 @@
+# src/graphql/schemas/mediaItem.gql
+type MediaItem {
+  id: ID!
+  workspaceId: Int!
+  workspace: Workspace!
+  type: MediaType!
+  displayId: String!
+  name: String!
+  format: String
+  location: String
+  latitude: Float
+  longitude: Float
+  closestLandmark: String
+  availability: String
+  staticMediaFaces: [StaticMediaFace!]
+  routes: [Route!]
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum MediaType {
+  BILLBOARD
+  STREET_POLE
+}
+
+extend type Query {
+  mediaItems(workspaceId: Int!): [MediaItem!]!
+  mediaItem(id: ID!): MediaItem
+}
+
+extend type Mutation {
+  createMediaItem(input: CreateMediaItemInput!): MediaItem!
+  updateMediaItem(id: ID!, input: UpdateMediaItemInput!): MediaItem!
+  deleteMediaItem(id: ID!): Boolean!
+}
+
+input CreateMediaItemInput {
+  workspaceId: Int!
+  type: MediaType!
+  name: String!
+  format: String
+  location: String
+  latitude: Float
+  longitude: Float
+  closestLandmark: String
+  availability: String
+  staticMediaFaces: [CreateStaticMediaFaceInlineInput!]
+  routes: [CreateRouteInlineInput!]
+}
+
+input UpdateMediaItemInput {
+  name: String
+  format: String
+  location: String
+  latitude: Float
+  longitude: Float
+  closestLandmark: String
+  availability: String
+  staticMediaFaces: [UpdateStaticMediaFaceInput!]
+  routes: [UpdateRouteInput!]
+}

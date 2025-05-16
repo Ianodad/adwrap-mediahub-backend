@@ -1,0 +1,71 @@
+.
+├── ab_tree_output.txt
+├── codegen.yml
+├── Dockerfile
+├── .gitignore
+├── package.json
+├── package-lock.json
+├── prisma
+│   ├── migrations
+│   │   ├── 20250512071600_init
+│   │   │   └── migration.sql
+│   │   ├── 20250512120911_update_displayid_constraint
+│   │   │   └── migration.sql
+│   │   ├── 20250512150249_add_route_fields
+│   │   │   └── migration.sql
+│   │   └── migration_lock.toml
+│   ├── schema.prisma
+│   └── seed.ts
+├── README.md
+├── src
+│   ├── config
+│   │   ├── database.ts
+│   │   └── index.ts
+│   ├── graphql
+│   │   ├── context.ts
+│   │   ├── resolvers
+│   │   │   ├── index.ts
+│   │   │   ├── mediaItemResolver.ts
+│   │   │   ├── routeResolver.ts
+│   │   │   ├── staticMediaFaceResolver.ts
+│   │   │   └── workspaceResolver.ts
+│   │   ├── scalars
+│   │   │   └── dateTime.ts
+│   │   └── schemas
+│   │       ├── generated-types.ts
+│   │       ├── index.ts
+│   │       ├── mediaItem.gql
+│   │       ├── root.gql
+│   │       ├── route.gql
+│   │       ├── scalars.gql
+│   │       ├── staticMediaFace.gql
+│   │       └── workspace.gql
+│   ├── index.ts
+│   ├── middleware
+│   │   └── errorHandler.ts
+│   ├── models
+│   │   ├── index.ts
+│   │   ├── mediaItemModel.ts
+│   │   ├── routeModel.ts
+│   │   ├── staticMediaFaceModel.ts
+│   │   └── workspaceModel.ts
+│   ├── seed
+│   │   ├── index.ts
+│   │   └── mock-data
+│   │       └── sample-data.json
+│   ├── types
+│   └── utils
+│       ├── idGenerator.ts
+│       ├── logger.ts
+│       ├── prismaErrorHandler.ts
+│       └── validator.ts
+├── tests
+│   ├── graphql
+│   ├── models
+│   └── utils
+│       └── idGenerator.test.ts
+├── tree_output.txt
+├── tsconfig.build.json
+└── tsconfig.json
+
+22 directories, 47 files
