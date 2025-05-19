@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: adwrap
+      POSTGRES_PASSWORD: adwrap_password
+      POSTGRES_DB: adwrap-mediahub
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: .
+    environment:
+      DATABASE_URL: "postgresql://adwrap:adwrap_password@db:5432/adwrap-mediahub  schema=public"
+      INIT_DB: "true"
+    ports:
+      - "9001:9001"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
