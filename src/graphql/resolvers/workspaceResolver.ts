@@ -1,5 +1,4 @@
 // src/graphql/resolvers/workspaceResolver.ts
-import { PrismaClient } from "@prisma/client";
 import { Workspace } from "../schemas/generated-types";
 import {
   createWorkspace,
@@ -8,16 +7,14 @@ import {
   updateWorkspace,
   deleteWorkspace,
 } from "../../models/workspaceModel";
+import { GraphQLInputValidator } from "../../validators";
 import logger from "../../utils/logger";
 import { ApiError } from "../../middleware/errorHandler";
-
-interface Context {
-  prisma: PrismaClient;
-}
+import { GraphQLContext } from "../../types/shared";
 
 export const workspaceResolvers = {
   Query: {
-    workspaces: async (_: any, __: any, context: Context) => {
+    workspaces: async (_: any, __: any, context: GraphQLContext) => {
       try {
         logger.debug("GraphQL Query: workspaces");
         return await getWorkspaces(context.prisma);
@@ -31,22 +28,27 @@ export const workspaceResolvers = {
       }
     },
 
-    workspace: async (_: any, { id }: { id: string }, context: Context) => {
+    workspace: async (
+      _: any,
+      { id }: { id: string },
+      context: GraphQLContext
+    ) => {
       try {
+        // Validate ID format
         const numericId = parseInt(id);
-        logger.debug(`GraphQL Query: workspace with ID ${numericId}`);
-
-        if (isNaN(numericId)) {
+        if (isNaN(numericId) || numericId <= 0) {
           logger.error(`Invalid ID format for workspace query: ${id}`);
-          throw ApiError.badRequest(`Invalid ID format: ${id}`);
+          throw ApiError.badRequest(`Invalid workspace ID format: ${id}`);
         }
 
+        logger.debug(`GraphQL Query: workspace with ID ${numericId}`);
         const workspace = await getWorkspaceById(context.prisma, numericId);
 
         if (!workspace) {
           logger.debug(
             `GraphQL Query: workspace with ID ${numericId} not found`
           );
+          throw ApiError.notFound(`Workspace with ID ${numericId} not found`);
         }
 
         return workspace;
@@ -64,30 +66,20 @@ export const workspaceResolvers = {
   Mutation: {
     createWorkspace: async (
       _: any,
-      {
-        input,
-      }: {
-        input: {
-          name: string;
-          email?: string;
-          address?: string;
-          location?: string;
-        };
-      },
-      context: Context
+      { input }: { input: any },
+      context: GraphQLContext
     ) => {
       try {
-        logger.debug(`GraphQL Mutation: createWorkspace "${input.name}"`);
+        logger.debug(`GraphQL Mutation: createWorkspace "${input?.name}"`);
 
-        // Validate input
-        if (!input.name || input.name.trim() === "") {
-          logger.error(
-            "Invalid workspace name in GraphQL mutation: Name cannot be empty"
-          );
-          throw ApiError.badRequest("Workspace name cannot be empty");
-        }
+        // Validate input using Joi validator
+        const validatedInput =
+          GraphQLInputValidator.validateCreateWorkspace(input);
 
-        return await createWorkspace(context.prisma, input);
+        logger.info(
+          `Creating workspace with validated input: ${validatedInput.name}`
+        );
+        return await createWorkspace(context.prisma, validatedInput);
       } catch (error) {
         logger.error(
           `GraphQL Mutation Error - createWorkspace: ${
@@ -100,38 +92,25 @@ export const workspaceResolvers = {
 
     updateWorkspace: async (
       _: any,
-      {
-        id,
-        input,
-      }: {
-        id: string;
-        input: {
-          name?: string;
-          email?: string;
-          address?: string;
-          location?: string;
-        };
-      },
-      context: Context
+      { id, input }: { id: string; input: any },
+      context: GraphQLContext
     ) => {
       try {
+        // Validate ID format
         const numericId = parseInt(id);
+        if (isNaN(numericId) || numericId <= 0) {
+          logger.error(`Invalid ID format for updateWorkspace: ${id}`);
+          throw ApiError.badRequest(`Invalid workspace ID format: ${id}`);
+        }
+
         logger.debug(`GraphQL Mutation: updateWorkspace with ID ${numericId}`);
 
-        if (isNaN(numericId)) {
-          logger.error(`Invalid ID format for updateWorkspace: ${id}`);
-          throw ApiError.badRequest(`Invalid ID format: ${id}`);
-        }
+        // Validate input using Joi validator
+        const validatedInput =
+          GraphQLInputValidator.validateUpdateWorkspace(input);
 
-        // Validate input - check that at least one field is being updated
-        if (Object.keys(input).length === 0) {
-          logger.error("Empty update payload for updateWorkspace");
-          throw ApiError.badRequest(
-            "Update must include at least one field to modify"
-          );
-        }
-
-        return await updateWorkspace(context.prisma, numericId, input);
+        logger.info(`Updating workspace ${numericId} with validated input`);
+        return await updateWorkspace(context.prisma, numericId, validatedInput);
       } catch (error) {
         logger.error(
           `GraphQL Mutation Error - updateWorkspace: ${
@@ -145,17 +124,30 @@ export const workspaceResolvers = {
     deleteWorkspace: async (
       _: any,
       { id }: { id: string },
-      context: Context
+      context: GraphQLContext
     ) => {
       try {
+        // Validate ID format
         const numericId = parseInt(id);
-        logger.debug(`GraphQL Mutation: deleteWorkspace with ID ${numericId}`);
-
-        if (isNaN(numericId)) {
+        if (isNaN(numericId) || numericId <= 0) {
           logger.error(`Invalid ID format for deleteWorkspace: ${id}`);
-          throw ApiError.badRequest(`Invalid ID format: ${id}`);
+          throw ApiError.badRequest(`Invalid workspace ID format: ${id}`);
         }
 
+        logger.debug(`GraphQL Mutation: deleteWorkspace with ID ${numericId}`);
+
+        // Check if workspace exists before deletion
+        const existingWorkspace = await getWorkspaceById(
+          context.prisma,
+          numericId
+        );
+        if (!existingWorkspace) {
+          throw ApiError.notFound(`Workspace with ID ${numericId} not found`);
+        }
+
+        logger.info(
+          `Deleting workspace ${numericId}: ${existingWorkspace.name}`
+        );
         return await deleteWorkspace(context.prisma, numericId);
       } catch (error) {
         logger.error(
@@ -169,14 +161,26 @@ export const workspaceResolvers = {
   },
 
   Workspace: {
-    mediaItems: async (parent: Workspace, _: any, context: Context) => {
+    mediaItems: async (parent: Workspace, _: any, context: GraphQLContext) => {
       try {
         // Convert the workspace ID to a number if it's a string
         const workspaceId =
           typeof parent.id === "string" ? parseInt(parent.id) : parent.id;
 
+        // Validate workspace ID
+        if (isNaN(workspaceId) || workspaceId <= 0) {
+          logger.error(
+            `Invalid workspace ID for mediaItems resolver: ${parent.id}`
+          );
+          throw ApiError.badRequest(`Invalid workspace ID: ${parent.id}`);
+        }
+
         const mediaItems = await context.prisma.mediaItem.findMany({
           where: { workspaceId },
+          include: {
+            staticMediaFaces: true,
+            routes: true,
+          },
         });
 
         logger.debug(

@@ -1,5 +1,4 @@
-// src/graphql/resolvers/staticMediaFace.ts
-import { PrismaClient } from "@prisma/client";
+// src/graphql/resolvers/staticMediaFaceResolver.ts
 import { StaticMediaFace } from "../schemas/generated-types";
 import {
   getStaticMediaFacesByMediaItemId,
@@ -7,28 +6,63 @@ import {
   updateStaticMediaFace,
   deleteStaticMediaFace,
 } from "../../models/staticMediaFaceModel";
+import { GraphQLInputValidator } from "../../validators";
 import logger from "../../utils/logger";
 import { ApiError } from "../../middleware/errorHandler";
-
-interface Context {
-  prisma: PrismaClient;
-}
+import { GraphQLContext } from "../../types/shared";
 
 export const staticMediaFaceResolvers = {
   Query: {
     staticMediaFaces: async (
       _: any,
       { mediaItemId }: { mediaItemId: number },
-      context: Context
+      context: GraphQLContext
     ) => {
       try {
+        // Validate mediaItemId
+        if (!Number.isInteger(mediaItemId) || mediaItemId <= 0) {
+          logger.error(
+            `Invalid media item ID for staticMediaFaces query: ${mediaItemId}`
+          );
+          throw ApiError.badRequest("Media item ID must be a positive integer");
+        }
+
         logger.debug(
           `GraphQL Query: staticMediaFaces for media item ${mediaItemId}`
         );
-        return await getStaticMediaFacesByMediaItemId(
+
+        // Verify media item exists and is a BILLBOARD
+        const mediaItem = await context.prisma.mediaItem.findUnique({
+          where: { id: mediaItemId },
+        });
+
+        if (!mediaItem) {
+          logger.error(
+            `Media item with ID ${mediaItemId} not found for staticMediaFaces query`
+          );
+          throw ApiError.notFound(
+            `Media item with ID ${mediaItemId} not found`
+          );
+        }
+
+        if (mediaItem.type !== "BILLBOARD") {
+          logger.warn(
+            `Attempted to fetch static media faces for non-BILLBOARD media item ${mediaItemId} (type: ${mediaItem.type})`
+          );
+          // Return empty array instead of throwing error for better UX
+          return [];
+        }
+
+        const faces = await getStaticMediaFacesByMediaItemId(
           context.prisma,
           mediaItemId
         );
+
+        logger.info(
+          `Found ${faces.length} static media faces for media item ${mediaItemId}`
+        );
+
+        return faces;
       } catch (error) {
         logger.error(
           `GraphQL Query Error - staticMediaFaces: ${
@@ -43,34 +77,72 @@ export const staticMediaFaceResolvers = {
   Mutation: {
     createStaticMediaFace: async (
       _: any,
-      {
-        input,
-      }: {
-        input: {
-          mediaItemId: number;
-          faceNumber: number;
-          description?: string;
-          availability?: string;
-          images?: string[];
-          rent?: number;
-        };
-      },
-      context: Context
+      { input }: { input: any },
+      context: GraphQLContext
     ) => {
       try {
         logger.debug(
-          `GraphQL Mutation: createStaticMediaFace #${input.faceNumber} for media item ${input.mediaItemId}`
+          `GraphQL Mutation: createStaticMediaFace #${input?.faceNumber} for media item ${input?.mediaItemId}`
         );
 
-        // Validate input
-        if (input.faceNumber <= 0) {
+        // Validate input using Joi validator
+        const validatedInput =
+          GraphQLInputValidator.validateCreateStaticMediaFace(input);
+
+        // Additional business logic validation
+        const mediaItem = await context.prisma.mediaItem.findUnique({
+          where: { id: validatedInput.mediaItemId },
+        });
+
+        if (!mediaItem) {
           logger.error(
-            `Invalid face number in GraphQL mutation: ${input.faceNumber}`
+            `Media item with ID ${validatedInput.mediaItemId} not found`
           );
-          throw ApiError.badRequest("Face number must be positive");
+          throw ApiError.notFound(
+            `Media item with ID ${validatedInput.mediaItemId} not found`
+          );
         }
 
-        return await createStaticMediaFace(context.prisma, input);
+        if (mediaItem.type !== "BILLBOARD") {
+          logger.error(
+            `Cannot create static media face for non-BILLBOARD media item ${validatedInput.mediaItemId}`
+          );
+          throw ApiError.badRequest(
+            `Static media faces can only be created for BILLBOARD media items`
+          );
+        }
+
+        // Check for duplicate face numbers
+        const existingFace = await context.prisma.staticMediaFace.findFirst({
+          where: {
+            mediaItemId: validatedInput.mediaItemId,
+            faceNumber: validatedInput.faceNumber,
+          },
+        });
+
+        if (existingFace) {
+          logger.error(
+            `Static media face with number ${validatedInput.faceNumber} already exists for media item ${validatedInput.mediaItemId}`
+          );
+          throw ApiError.badRequest(
+            `Face number ${validatedInput.faceNumber} already exists for this billboard`
+          );
+        }
+
+        logger.info(
+          `Creating static media face #${validatedInput.faceNumber} for billboard ${mediaItem.displayId}`
+        );
+
+        const result = await createStaticMediaFace(
+          context.prisma,
+          validatedInput
+        );
+
+        logger.info(
+          `Successfully created static media face with ID ${result.id}`
+        );
+
+        return result;
       } catch (error) {
         logger.error(
           `GraphQL Mutation Error - createStaticMediaFace: ${
@@ -83,41 +155,77 @@ export const staticMediaFaceResolvers = {
 
     updateStaticMediaFace: async (
       _: any,
-      {
-        id,
-        input,
-      }: {
-        id: string;
-        input: {
-          faceNumber?: number;
-          description?: string;
-          availability?: string;
-          images?: string[];
-          rent?: number;
-        };
-      },
-      context: Context
+      { id, input }: { id: string; input: any },
+      context: GraphQLContext
     ) => {
       try {
+        // Validate ID format
         const numericId = parseInt(id);
+        if (isNaN(numericId) || numericId <= 0) {
+          logger.error(`Invalid ID format for updateStaticMediaFace: ${id}`);
+          throw ApiError.badRequest(
+            `Invalid static media face ID format: ${id}`
+          );
+        }
+
         logger.debug(
           `GraphQL Mutation: updateStaticMediaFace with ID ${numericId}`
         );
 
-        if (isNaN(numericId)) {
-          logger.error(`Invalid ID format for updateStaticMediaFace: ${id}`);
-          throw ApiError.badRequest(`Invalid ID format: ${id}`);
-        }
+        // Check if static media face exists
+        const existingFace = await context.prisma.staticMediaFace.findUnique({
+          where: { id: numericId },
+          include: { mediaItem: true },
+        });
 
-        // Validate input - check that at least one field is being updated
-        if (Object.keys(input).length === 0) {
-          logger.error("Empty update payload for updateStaticMediaFace");
-          throw ApiError.badRequest(
-            "Update must include at least one field to modify"
+        if (!existingFace) {
+          logger.error(`Static media face with ID ${numericId} not found`);
+          throw ApiError.notFound(
+            `Static media face with ID ${numericId} not found`
           );
         }
 
-        return await updateStaticMediaFace(context.prisma, numericId, input);
+        // Validate input using Joi validator
+        const validatedInput =
+          GraphQLInputValidator.validateUpdateStaticMediaFace(input);
+
+        // Additional validation for face number conflicts
+        if (
+          validatedInput.faceNumber !== undefined &&
+          validatedInput.faceNumber !== existingFace.faceNumber
+        ) {
+          const conflictingFace =
+            await context.prisma.staticMediaFace.findFirst({
+              where: {
+                mediaItemId: existingFace.mediaItemId,
+                faceNumber: validatedInput.faceNumber,
+                id: { not: numericId },
+              },
+            });
+
+          if (conflictingFace) {
+            logger.error(
+              `Face number ${validatedInput.faceNumber} already exists for media item ${existingFace.mediaItemId}`
+            );
+            throw ApiError.badRequest(
+              `Face number ${validatedInput.faceNumber} already exists for this billboard`
+            );
+          }
+        }
+
+        logger.info(
+          `Updating static media face ${numericId} for billboard ${existingFace.mediaItem.displayId}`
+        );
+
+        const result = await updateStaticMediaFace(
+          context.prisma,
+          numericId,
+          validatedInput
+        );
+
+        logger.info(`Successfully updated static media face ${numericId}`);
+
+        return result;
       } catch (error) {
         logger.error(
           `GraphQL Mutation Error - updateStaticMediaFace: ${
@@ -131,20 +239,44 @@ export const staticMediaFaceResolvers = {
     deleteStaticMediaFace: async (
       _: any,
       { id }: { id: string },
-      context: Context
+      context: GraphQLContext
     ) => {
       try {
+        // Validate ID format
         const numericId = parseInt(id);
+        if (isNaN(numericId) || numericId <= 0) {
+          logger.error(`Invalid ID format for deleteStaticMediaFace: ${id}`);
+          throw ApiError.badRequest(
+            `Invalid static media face ID format: ${id}`
+          );
+        }
+
         logger.debug(
           `GraphQL Mutation: deleteStaticMediaFace with ID ${numericId}`
         );
 
-        if (isNaN(numericId)) {
-          logger.error(`Invalid ID format for deleteStaticMediaFace: ${id}`);
-          throw ApiError.badRequest(`Invalid ID format: ${id}`);
+        // Check if static media face exists
+        const existingFace = await context.prisma.staticMediaFace.findUnique({
+          where: { id: numericId },
+          include: { mediaItem: true },
+        });
+
+        if (!existingFace) {
+          logger.error(`Static media face with ID ${numericId} not found`);
+          throw ApiError.notFound(
+            `Static media face with ID ${numericId} not found`
+          );
         }
 
-        return await deleteStaticMediaFace(context.prisma, numericId);
+        logger.info(
+          `Deleting static media face ${numericId} (face #${existingFace.faceNumber}) from billboard ${existingFace.mediaItem.displayId}`
+        );
+
+        const result = await deleteStaticMediaFace(context.prisma, numericId);
+
+        logger.info(`Successfully deleted static media face ${numericId}`);
+
+        return result;
       } catch (error) {
         logger.error(
           `GraphQL Mutation Error - deleteStaticMediaFace: ${
@@ -157,18 +289,37 @@ export const staticMediaFaceResolvers = {
   },
 
   StaticMediaFace: {
-    mediaItem: async (parent: StaticMediaFace, _: any, context: Context) => {
+    mediaItem: async (
+      parent: StaticMediaFace,
+      _: any,
+      context: GraphQLContext
+    ) => {
       try {
+        // Validate media item ID
+        const mediaItemId =
+          typeof parent.mediaItemId === "string"
+            ? parseInt(parent.mediaItemId)
+            : parent.mediaItemId;
+
+        if (isNaN(mediaItemId) || mediaItemId <= 0) {
+          logger.error(
+            `Invalid media item ID for StaticMediaFace ${parent.id}: ${parent.mediaItemId}`
+          );
+          throw ApiError.badRequest(
+            `Invalid media item ID: ${parent.mediaItemId}`
+          );
+        }
+
         const mediaItem = await context.prisma.mediaItem.findUnique({
-          where: { id: parent.mediaItemId },
+          where: { id: mediaItemId },
         });
 
         if (!mediaItem) {
           logger.error(
-            `Media item with ID ${parent.mediaItemId} not found for StaticMediaFace ${parent.id}`
+            `Media item with ID ${mediaItemId} not found for StaticMediaFace ${parent.id}`
           );
           throw ApiError.notFound(
-            `Media item with ID ${parent.mediaItemId} not found`
+            `Media item with ID ${mediaItemId} not found`
           );
         }
 
@@ -183,17 +334,27 @@ export const staticMediaFaceResolvers = {
       }
     },
 
-    // Add this resolver to convert JSON string to array
+    // Resolver to convert JSON string to array
     images: (parent: any) => {
       try {
         if (!parent.imagesJson) return [];
 
         try {
-          return JSON.parse(parent.imagesJson);
-        } catch (e) {
+          const parsed = JSON.parse(parent.imagesJson);
+          // Validate that parsed result is an array
+          if (!Array.isArray(parsed)) {
+            logger.warn(
+              `Invalid images format for StaticMediaFace ${
+                parent.id
+              }: expected array, got ${typeof parsed}`
+            );
+            return [];
+          }
+          return parsed;
+        } catch (parseError) {
           logger.error(
             `Error parsing images JSON for StaticMediaFace ${parent.id}: ${
-              e instanceof Error ? e.message : e
+              parseError instanceof Error ? parseError.message : parseError
             }`
           );
           return [];

@@ -1,6 +1,5 @@
 // src/graphql/resolvers/mediaItemResolver.ts
-import { PrismaClient } from "@prisma/client";
-import { MediaItem, MediaType } from "../schemas/generated-types";
+import { MediaItem } from "../schemas/generated-types";
 import {
   createMediaItem,
   updateMediaItem,
@@ -8,24 +7,46 @@ import {
   getMediaItems,
   getMediaItemById,
 } from "../../models/mediaItemModel";
+import { GraphQLInputValidator } from "../../validators";
 import logger from "../../utils/logger";
 import { ApiError } from "../../middleware/errorHandler";
 import { generateWorkspaceScopedId } from "../../utils/idGenerator";
-
-interface Context {
-  prisma: PrismaClient;
-}
+import { GraphQLContext } from "../../types/shared";
 
 export const mediaItemResolvers = {
   Query: {
     mediaItems: async (
       _: any,
       { workspaceId }: { workspaceId: number },
-      context: Context
+      context: GraphQLContext
     ) => {
       try {
+        // Validate workspaceId
+        if (!Number.isInteger(workspaceId) || workspaceId <= 0) {
+          logger.error(
+            `Invalid workspace ID for mediaItems query: ${workspaceId}`
+          );
+          throw ApiError.badRequest("Workspace ID must be a positive integer");
+        }
+
         logger.debug(`GraphQL Query: mediaItems for workspace ${workspaceId}`);
-        return await getMediaItems(context.prisma, workspaceId);
+
+        // Verify workspace exists
+        const workspace = await context.prisma.workspace.findUnique({
+          where: { id: workspaceId },
+        });
+
+        if (!workspace) {
+          logger.error(`Workspace with ID ${workspaceId} not found`);
+          throw ApiError.notFound(`Workspace with ID ${workspaceId} not found`);
+        }
+
+        const mediaItems = await getMediaItems(context.prisma, workspaceId);
+        logger.info(
+          `Found ${mediaItems.length} media items for workspace ${workspaceId}`
+        );
+
+        return mediaItems;
       } catch (error) {
         logger.error(
           `GraphQL Query Error - mediaItems: ${
@@ -36,22 +57,27 @@ export const mediaItemResolvers = {
       }
     },
 
-    mediaItem: async (_: any, { id }: { id: string }, context: Context) => {
+    mediaItem: async (
+      _: any,
+      { id }: { id: string },
+      context: GraphQLContext
+    ) => {
       try {
+        // Validate ID format
         const numericId = parseInt(id);
-        logger.debug(`GraphQL Query: mediaItem with ID ${numericId}`);
-
-        if (isNaN(numericId)) {
-          logger.error(`Invalid ID format: ${id}`);
-          throw ApiError.badRequest(`Invalid ID format: ${id}`);
+        if (isNaN(numericId) || numericId <= 0) {
+          logger.error(`Invalid ID format for mediaItem query: ${id}`);
+          throw ApiError.badRequest(`Invalid media item ID format: ${id}`);
         }
 
+        logger.debug(`GraphQL Query: mediaItem with ID ${numericId}`);
         const item = await getMediaItemById(context.prisma, numericId);
 
         if (!item) {
           logger.debug(
             `GraphQL Query: mediaItem with ID ${numericId} not found`
           );
+          throw ApiError.notFound(`Media item with ID ${numericId} not found`);
         }
 
         return item;
@@ -69,139 +95,73 @@ export const mediaItemResolvers = {
   Mutation: {
     createMediaItem: async (
       _: any,
-      {
-        input,
-      }: {
-        input: {
-          workspaceId: number;
-          type: MediaType;
-          name: string;
-          format?: string;
-          location?: string;
-          latitude?: number;
-          longitude?: number;
-          closestLandmark?: string;
-          availability?: string;
-          staticMediaFaces?: any[];
-          routes?: any[];
-        };
-      },
-      context: Context
+      { input }: { input: any },
+      context: GraphQLContext
     ) => {
       try {
         logger.debug(
-          `GraphQL Mutation: createMediaItem for workspace ${input.workspaceId}`
+          `GraphQL Mutation: createMediaItem for workspace ${input?.workspaceId}`
         );
 
-        // Validate input
-        if (!input.name || input.name.trim() === "") {
-          logger.error("Invalid media item name: Name cannot be empty");
-          throw ApiError.badRequest("Name cannot be empty");
-        }
+        // Validate input using Joi validator
+        const validatedInput =
+          GraphQLInputValidator.validateCreateMediaItem(input);
 
         // Validate that the workspace exists
         const workspace = await context.prisma.workspace.findUnique({
-          where: { id: input.workspaceId },
+          where: { id: validatedInput.workspaceId },
         });
 
         if (!workspace) {
-          logger.error(`Workspace with ID ${input.workspaceId} not found`);
+          logger.error(
+            `Workspace with ID ${validatedInput.workspaceId} not found`
+          );
           throw ApiError.notFound(
-            `Workspace with ID ${input.workspaceId} not found`
+            `Workspace with ID ${validatedInput.workspaceId} not found`
           );
         }
 
-        // Validate each staticMediaFace
-        if (
-          input.type === "BILLBOARD" &&
-          input.staticMediaFaces &&
-          input.staticMediaFaces.length > 0
-        ) {
-          // Validate face numbers
-          const faceNumbers = new Set();
-          for (const face of input.staticMediaFaces) {
-            if (!face.faceNumber || face.faceNumber <= 0) {
-              throw ApiError.badRequest("Face number must be positive");
-            }
+        // Additional business logic validation
+        if (validatedInput.type === "BILLBOARD") {
+          // Validate that billboard has at least one face if faces are provided
+          if (
+            validatedInput.staticMediaFaces &&
+            validatedInput.staticMediaFaces.length === 0
+          ) {
+            logger.warn("Billboard created without static media faces");
+          }
 
-            if (faceNumbers.has(face.faceNumber)) {
-              throw ApiError.badRequest(
-                `Duplicate face number: ${face.faceNumber}`
-              );
-            }
+          // Remove any routes that might have been passed (shouldn't happen with validation)
+          if (validatedInput.routes) {
+            logger.warn("Routes provided for BILLBOARD type - removing them");
+            delete validatedInput.routes;
+          }
+        } else if (validatedInput.type === "STREET_POLE") {
+          // Validate that street pole has at least one route if routes are provided
+          if (validatedInput.routes && validatedInput.routes.length === 0) {
+            logger.warn("Street pole created without routes");
+          }
 
-            faceNumbers.add(face.faceNumber);
-
-            if (face.rent !== undefined && face.rent < 0) {
-              throw ApiError.badRequest("Rent cannot be negative");
-            }
+          // Remove any static media faces that might have been passed
+          if (validatedInput.staticMediaFaces) {
+            logger.warn(
+              "Static media faces provided for STREET_POLE type - removing them"
+            );
+            delete validatedInput.staticMediaFaces;
           }
         }
 
-        // Validate each route
-        if (
-          input.type === "STREET_POLE" &&
-          input.routes &&
-          input.routes.length > 0
-        ) {
-          for (const route of input.routes) {
-            if (!route.routeName || route.routeName.trim() === "") {
-              throw ApiError.badRequest("Route name cannot be empty");
-            }
-
-            if (
-              route.numberOfStreetPoles !== undefined &&
-              route.numberOfStreetPoles <= 0
-            ) {
-              throw ApiError.badRequest(
-                "Number of street poles must be positive"
-              );
-            }
-
-            if (
-              route.pricePerStreetPole !== undefined &&
-              route.pricePerStreetPole < 0
-            ) {
-              throw ApiError.badRequest(
-                "Price per street pole cannot be negative"
-              );
-            }
-          }
-        }
-
-        // Type validation
-        if (
-          input.type === "BILLBOARD" &&
-          input.routes &&
-          input.routes.length > 0
-        ) {
-          logger.warn(
-            "Routes provided for BILLBOARD type - these will be ignored"
-          );
-        }
-
-        if (
-          input.type === "STREET_POLE" &&
-          input.staticMediaFaces &&
-          input.staticMediaFaces.length > 0
-        ) {
-          logger.warn(
-            "Static media faces provided for STREET_POLE type - these will be ignored"
-          );
-        }
-
-        // Generate display ID before creating media item - with retry logic
+        // Generate display ID with retry logic
         let displayId;
         let retryCount = 0;
         const MAX_RETRIES = 3;
 
         while (retryCount < MAX_RETRIES) {
           try {
-            // Pre-generate the display ID
             displayId = await generateWorkspaceScopedId(
               context.prisma,
-              input.workspaceId,
-              input.type
+              validatedInput.workspaceId,
+              validatedInput.type
             );
             logger.debug(
               `Pre-generated displayId: ${displayId} for new media item (attempt ${
@@ -212,18 +172,17 @@ export const mediaItemResolvers = {
             // Check if this ID already exists
             const existingWithId = await context.prisma.mediaItem.findFirst({
               where: {
-                workspaceId: input.workspaceId,
+                workspaceId: validatedInput.workspaceId,
                 displayId,
               },
             });
 
             if (!existingWithId) {
-              // If no conflict, break the loop and proceed
               break;
             }
 
             logger.warn(
-              `DisplayId ${displayId} already exists for workspace ${input.workspaceId}, retrying...`
+              `DisplayId ${displayId} already exists for workspace ${validatedInput.workspaceId}, retrying...`
             );
             retryCount++;
           } catch (idError) {
@@ -246,14 +205,23 @@ export const mediaItemResolvers = {
           );
         }
 
-        // Add the displayId to the input
+        // Add the displayId to the validated input
         const mediaItemData = {
-          ...input,
+          ...validatedInput,
           displayId,
         };
 
-        // Call the model function
-        return await createMediaItem(context.prisma, mediaItemData);
+        logger.info(
+          `Creating ${validatedInput.type} media item: ${validatedInput.name} with displayId: ${displayId}`
+        );
+
+        const result = await createMediaItem(context.prisma, mediaItemData);
+
+        logger.info(
+          `Successfully created media item with ID ${result.id} and displayId ${result.displayId}`
+        );
+
+        return result;
       } catch (error) {
         logger.error(
           `GraphQL Mutation Error - createMediaItem: ${
@@ -266,43 +234,55 @@ export const mediaItemResolvers = {
 
     updateMediaItem: async (
       _: any,
-      {
-        id,
-        input,
-      }: {
-        id: string;
-        input: {
-          name?: string;
-          format?: string;
-          location?: string;
-          latitude?: number;
-          longitude?: number;
-          closestLandmark?: string;
-          availability?: string;
-          staticMediaFaces?: any[];
-          routes?: any[];
-        };
-      },
-      context: Context
+      { id, input }: { id: string; input: any },
+      context: GraphQLContext
     ) => {
       try {
+        // Validate ID format
         const numericId = parseInt(id);
+        if (isNaN(numericId) || numericId <= 0) {
+          logger.error(`Invalid ID format for updateMediaItem: ${id}`);
+          throw ApiError.badRequest(`Invalid media item ID format: ${id}`);
+        }
+
         logger.debug(`GraphQL Mutation: updateMediaItem with ID ${numericId}`);
 
-        if (isNaN(numericId)) {
-          logger.error(`Invalid ID format: ${id}`);
-          throw ApiError.badRequest(`Invalid ID format: ${id}`);
+        // Check if media item exists
+        const existingItem = await getMediaItemById(context.prisma, numericId);
+        if (!existingItem) {
+          throw ApiError.notFound(`Media item with ID ${numericId} not found`);
         }
 
-        // Validate input - check that at least one field is being updated
-        if (Object.keys(input).length === 0) {
-          logger.error("Empty update payload for updateMediaItem");
-          throw ApiError.badRequest(
-            "Update must include at least one field to modify"
-          );
+        // Validate input using Joi validator
+        const validatedInput =
+          GraphQLInputValidator.validateUpdateMediaItem(input);
+
+        // Additional business logic validation based on existing media item type
+        if (existingItem.type === "BILLBOARD") {
+          if (validatedInput.routes) {
+            logger.warn("Routes provided for BILLBOARD type - removing them");
+            delete validatedInput.routes;
+          }
+        } else if (existingItem.type === "STREET_POLE") {
+          if (validatedInput.staticMediaFaces) {
+            logger.warn(
+              "Static media faces provided for STREET_POLE type - removing them"
+            );
+            delete validatedInput.staticMediaFaces;
+          }
         }
 
-        return await updateMediaItem(context.prisma, numericId, input);
+        logger.info(`Updating media item ${numericId}: ${existingItem.name}`);
+
+        const result = await updateMediaItem(
+          context.prisma,
+          numericId,
+          validatedInput
+        );
+
+        logger.info(`Successfully updated media item ${numericId}`);
+
+        return result;
       } catch (error) {
         logger.error(
           `GraphQL Mutation Error - updateMediaItem: ${
@@ -316,18 +296,33 @@ export const mediaItemResolvers = {
     deleteMediaItem: async (
       _: any,
       { id }: { id: string },
-      context: Context
+      context: GraphQLContext
     ) => {
       try {
+        // Validate ID format
         const numericId = parseInt(id);
-        logger.debug(`GraphQL Mutation: deleteMediaItem with ID ${numericId}`);
-
-        if (isNaN(numericId)) {
-          logger.error(`Invalid ID format: ${id}`);
-          throw ApiError.badRequest(`Invalid ID format: ${id}`);
+        if (isNaN(numericId) || numericId <= 0) {
+          logger.error(`Invalid ID format for deleteMediaItem: ${id}`);
+          throw ApiError.badRequest(`Invalid media item ID format: ${id}`);
         }
 
-        return await deleteMediaItem(context.prisma, numericId);
+        logger.debug(`GraphQL Mutation: deleteMediaItem with ID ${numericId}`);
+
+        // Check if media item exists
+        const existingItem = await getMediaItemById(context.prisma, numericId);
+        if (!existingItem) {
+          throw ApiError.notFound(`Media item with ID ${numericId} not found`);
+        }
+
+        logger.info(
+          `Deleting media item ${numericId}: ${existingItem.name} (${existingItem.displayId})`
+        );
+
+        const result = await deleteMediaItem(context.prisma, numericId);
+
+        logger.info(`Successfully deleted media item ${numericId}`);
+
+        return result;
       } catch (error) {
         logger.error(
           `GraphQL Mutation Error - deleteMediaItem: ${
@@ -340,12 +335,22 @@ export const mediaItemResolvers = {
   },
 
   MediaItem: {
-    workspace: async (parent: MediaItem, _: any, context: Context) => {
+    workspace: async (parent: MediaItem, _: any, context: GraphQLContext) => {
       try {
         const workspaceId =
           typeof parent.workspaceId === "string"
             ? parseInt(parent.workspaceId)
             : parent.workspaceId;
+
+        // Validate workspace ID
+        if (isNaN(workspaceId) || workspaceId <= 0) {
+          logger.error(
+            `Invalid workspace ID for MediaItem ${parent.id}: ${parent.workspaceId}`
+          );
+          throw ApiError.badRequest(
+            `Invalid workspace ID: ${parent.workspaceId}`
+          );
+        }
 
         const workspace = await context.prisma.workspace.findUnique({
           where: { id: workspaceId },
@@ -369,7 +374,11 @@ export const mediaItemResolvers = {
       }
     },
 
-    staticMediaFaces: async (parent: MediaItem, _: any, context: Context) => {
+    staticMediaFaces: async (
+      parent: MediaItem,
+      _: any,
+      context: GraphQLContext
+    ) => {
       try {
         if (parent.type !== "BILLBOARD") {
           logger.debug(
@@ -378,12 +387,20 @@ export const mediaItemResolvers = {
           return null;
         }
 
-        // Convert string ID to number
         const mediaItemId =
           typeof parent.id === "string" ? parseInt(parent.id) : parent.id;
 
+        // Validate media item ID
+        if (isNaN(mediaItemId) || mediaItemId <= 0) {
+          logger.error(
+            `Invalid media item ID for staticMediaFaces resolver: ${parent.id}`
+          );
+          throw ApiError.badRequest(`Invalid media item ID: ${parent.id}`);
+        }
+
         const faces = await context.prisma.staticMediaFace.findMany({
           where: { mediaItemId },
+          orderBy: { faceNumber: "asc" },
         });
 
         logger.debug(
@@ -400,19 +417,27 @@ export const mediaItemResolvers = {
       }
     },
 
-    routes: async (parent: MediaItem, _: any, context: Context) => {
+    routes: async (parent: MediaItem, _: any, context: GraphQLContext) => {
       try {
         if (parent.type !== "STREET_POLE") {
           logger.debug(`No routes for non-STREET_POLE media item ${parent.id}`);
           return null;
         }
 
-        // Convert string ID to number
         const mediaItemId =
           typeof parent.id === "string" ? parseInt(parent.id) : parent.id;
 
+        // Validate media item ID
+        if (isNaN(mediaItemId) || mediaItemId <= 0) {
+          logger.error(
+            `Invalid media item ID for routes resolver: ${parent.id}`
+          );
+          throw ApiError.badRequest(`Invalid media item ID: ${parent.id}`);
+        }
+
         const routes = await context.prisma.route.findMany({
           where: { mediaItemId },
+          orderBy: { routeName: "asc" },
         });
 
         logger.debug(

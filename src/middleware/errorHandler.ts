@@ -1,6 +1,7 @@
 // src/middleware/errorHandler.ts
 import { Request, Response, NextFunction } from "express";
 import logger from "../utils/logger";
+import { validationErrorHandler } from "./validationErrorHandler";
 
 interface ExtendedError extends Error {
   code?: string | number;
@@ -64,3 +65,5 @@ export class ApiError extends Error {
     return new ApiError(401, message, "UNAUTHORIZED");
   }
 }
+
+export { validationErrorHandler };
